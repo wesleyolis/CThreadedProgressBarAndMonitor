@@ -30,6 +30,7 @@ void ProgMonitorDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_PROGRESS, m_CtlProgBar);
 	DDX_Control(pDX, IDC_STATUS, m_CtlStatus);
+	DDX_Control(pDX, IDC_PROGRESS_STATUS, m_CtlProgStatus);
 	DDX_Control(pDX, IDCANCEL, m_CtlCancel);
 }
 
@@ -37,6 +38,13 @@ void ProgMonitorDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(ProgMonitorDlg, CDialogEx)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDCANCEL, &ProgMonitorDlg::OnBnClickedCancel)
+	ON_MESSAGE(WM_PROG_MONITOR_PROGBAR, &ProgMonitorDlg::OnSetProgBar)
+	ON_MESSAGE(WM_PROG_MONITOR_START, &ProgMonitorDlg::OnStart)
+	ON_MESSAGE(WM_PROG_MONITOR_STOP, &ProgMonitorDlg::OnStop)
+	ON_MESSAGE(WM_PROG_MONITOR_SETMARGUE_MODE, &ProgMonitorDlg::OnSetMarqueMode)
+	ON_MESSAGE(WM_PROG_MONITOR_SETSTATUS, &ProgMonitorDlg::OnSetStatus)
+	ON_MESSAGE(WM_PROG_MONITOR_SETPOS, &ProgMonitorDlg::OnSetPos)
+	ON_MESSAGE(WM_PROG_MONITOR_SETRANGE, &ProgMonitorDlg::OnSetRange)
 END_MESSAGE_MAP()
 
 
@@ -63,14 +71,69 @@ bool ProgMonitorDlg::Create(CWnd* parent)
 	return false;
 }
 
-void ProgMonitorDlg::SetProgBar(ProgBar* pProgBar){
+void ProgMonitorDlg::Destroy()
+{
+	DestroyWindow();
+}
+
+LRESULT ProgMonitorDlg::OnSetProgBar(WPARAM wParam, LPARAM lParam) {
+
+	SetProgBarIntenal((ProgBar*) lParam);
+
+	return 0;
+}
+
+LRESULT ProgMonitorDlg::OnStart(WPARAM wParam, LPARAM lParam)
+{
+	StartIntenal(lParam);
+
+	return 0;
+}
+
+LRESULT ProgMonitorDlg::OnStop(WPARAM wParam, LPARAM lParam)
+{
+	StopIntenal();
+
+	return 0;
+}
+
+LRESULT ProgMonitorDlg::OnSetMarqueMode(WPARAM wParam, LPARAM lParam)
+{
+	SetMarqueModeIntenal((bool) lParam);
+
+	return 0;
+}
+
+LRESULT ProgMonitorDlg::OnSetStatus(WPARAM wParam, LPARAM lParam)
+{
+	m_CtlStatus.SetWindowTextA(m_csStatus);
+
+	return 0;
+}
+
+LRESULT ProgMonitorDlg::OnSetPos(WPARAM wParam, LPARAM lParam)
+{
+	SetPosIntenal((int) lParam);
+
+	return 0;
+}
+
+LRESULT ProgMonitorDlg::OnSetRange(WPARAM wParam, LPARAM lParam)
+{
+	SetRangeIntenal((int) lParam);
+
+	return 0;
+}
+
+
+void ProgMonitorDlg::SetProgBarIntenal(ProgBar* pProgBar) {
 
 	m_pProgBar = pProgBar;
 
 	m_CtlCancel.EnableWindow(m_pProgBar != nullptr);
 }
 
-void ProgMonitorDlg::Start(int msDelay) {
+void ProgMonitorDlg::StartIntenal(int msDelay) {
 	
 	if (m_bRunning)
 		return;
@@ -87,13 +150,13 @@ void ProgMonitorDlg::Start(int msDelay) {
 	}
 }
 
-void ProgMonitorDlg::Stop() {
+void ProgMonitorDlg::StopIntenal() {
 
 	::SendMessage(m_CtlProgBar, PBM_SETMARQUEE, FALSE, 100);
 	m_bRunning = false;
 }
 
-void ProgMonitorDlg::SetMarqueMode(bool bEnable){
+void ProgMonitorDlg::SetMarqueModeIntenal(bool bEnable) {
 	
 	if (bEnable)
 	{
@@ -107,28 +170,38 @@ void ProgMonitorDlg::SetMarqueMode(bool bEnable){
 	
 		if (m_bRunning){
 
-			Stop();
+			StopIntenal();
 		}
 		m_CtlProgBar.ModifyStyle(GetStyle() & PBS_MARQUEE, NULL);
 		m_MarqueeMode = false;
 	}
 
+	m_CtlProgStatus.SetWindowText("");
+
 	RedrawWindow();
 }
 
-void ProgMonitorDlg::SetStatus(CString csStatus) {
+void ProgMonitorDlg::SetStatusIntenal(CString csStatus) {
 
-	m_CtlStatus.SetWindowTextA(csStatus);
+	m_csStatus = csStatus;
+	//m_CtlStatus.SetWindowTextA(csStatus);
 	//m_CtlStatus.RedrawWindow();
 }
 
-void ProgMonitorDlg::SetPos(int iPos) {
+void ProgMonitorDlg::SetPosIntenal(int iPos) {
+
+	CString csStatus;
+
+	csStatus.Format("%d / %d", iPos, m_iRange);
+
+	m_CtlProgStatus.SetWindowText(csStatus);
 
 	m_CtlProgBar.SetPos(iPos);
 }
 
-void ProgMonitorDlg::SetRange(int iRange) {
+void ProgMonitorDlg::SetRangeIntenal(int iRange) {
 
+	m_iRange = iRange;
 	m_CtlProgBar.SetRange32(0,iRange);
 }
 
@@ -227,11 +300,10 @@ ProgMonitor::~ProgMonitor(){
 		m_pProgMonitorDlgThread->m_pProgMonitor = nullptr;
 		m_ProgMon->SetProgBar(nullptr);
 
-		m_ProgMon->OnBnClickedCancel();
+		m_ProgMon->EndDialog(ID_OK);
 
 		DWORD dExitCode = STILL_ACTIVE;
 		while (dExitCode == STILL_ACTIVE) {
-
 			m_pProgMonitorDlgThread->PumpMessage();
 			GetExitCodeThread(m_pProgMonitorDlgThread->m_hThread, &dExitCode);
 		}
@@ -242,8 +314,8 @@ ProgMonitor::~ProgMonitor(){
 
 void ProgMonitor::SetMarqueMode(bool bEnable){
 
-	// Reset any cancelling.
-	m_bCancelled = false;
+	// Reset any cancelling., This should actually be an explict option.
+	//m_bCancelled = false;
 
 	if (m_ProgMon)
 	{
@@ -313,7 +385,7 @@ void ProgMonitor::SetPos(int iPos) {
 	if (CreateDlgIfNotRunning()) {
 
 		m_ProgMon->SetPos(iPos);
-
+		
 		MSG Msg;
 		while (PeekMessage(&Msg, m_ProgMon->m_hWnd, 0, 0, PM_REMOVE)) {
 
@@ -366,6 +438,7 @@ void ProgMonitor::WaitForThreadAndPumpMessage(HANDLE ThreadFinished){
 		PeekMessage(&Msg, m_ProgMon->m_hWnd, 0, 0, PM_REMOVE);
 		TranslateMessage(&Msg);
 		DispatchMessage(&Msg);
+		
 	}
 
 	CloseHandle(ThreadFinished);
@@ -434,7 +507,6 @@ void ProgMonitor::CreateThreaded() {
 	m_pProgMonitorDlgThread->m_pParent = m_pParent;
 	m_pProgMonitorDlgThread->m_pProgMonitor = this;
 	m_pProgMonitorDlgThread->CreateThread();
-	m_pProgMonitorDlgThread->ResumeThread();
 
 	while (WaitForSingleObject(m_pProgMonitorDlgThread->m_hThreadRunning, INFINITE) != WAIT_OBJECT_0);
 

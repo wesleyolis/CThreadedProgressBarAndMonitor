@@ -4,6 +4,14 @@
 #include "afxdialogex.h"
 #include "ProgBar.h"
 
+#define WM_PROG_MONITOR_PROGBAR			WM_APP + 200
+#define WM_PROG_MONITOR_START			WM_APP + 201
+#define WM_PROG_MONITOR_STOP			WM_APP + 202
+#define WM_PROG_MONITOR_SETMARGUE_MODE  WM_APP + 203
+#define WM_PROG_MONITOR_SETSTATUS		WM_APP + 204
+#define WM_PROG_MONITOR_SETPOS			WM_APP + 205
+#define WM_PROG_MONITOR_SETRANGE		WM_APP + 206
+
 class ProgMonitorDlg : public CDialogEx
 {
 	DECLARE_DYNAMIC(ProgMonitorDlg)
@@ -24,21 +32,46 @@ public:
 
 	virtual BOOL OnInitDialog();
 
-	bool Create(CWnd* parent);
+	bool ProgMonitorDlg::Create(CWnd* parent);
 
-	void SetProgBar(ProgBar* pProgBar);
+	void ProgMonitorDlg::Destroy();
 
-	void Start(int msDelay);
+	void SetProgBar(ProgBar* pProgBar) {
 
-	void Stop();
+		this->SendMessage(WM_PROG_MONITOR_PROGBAR, 0, (LPARAM)pProgBar);
+	}
 
-	void SetMarqueMode(bool bEnable);
+	void Start(int msDelay) {
 
-	void SetStatus(CString csStatus);
+		this->SendMessage(WM_PROG_MONITOR_START, 0, (LPARAM) msDelay);
+	}
 
-	void SetPos(int iPos);
+	void Stop() {
 
-	void SetRange(int iRange);
+		this->SendMessage(WM_PROG_MONITOR_STOP, 0, 0);
+	}
+
+	void SetMarqueMode(bool bEnable) {
+
+		this->SendMessage(WM_PROG_MONITOR_SETMARGUE_MODE, 0, (LPARAM) bEnable);
+	}
+
+	void SetStatus(CString csStatus) {
+
+		m_csStatus = csStatus;
+
+		this->SendMessage(WM_PROG_MONITOR_SETSTATUS, 0, 0);
+	}
+
+	void SetPos(int iPos) {
+
+		this->SendMessage(WM_PROG_MONITOR_SETPOS, 0, iPos);
+	}
+
+	void SetRange(int iRange) {
+
+		this->SendMessage(WM_PROG_MONITOR_SETRANGE, 0, iRange);
+	}
 
 	void EnsureShowing();
 
@@ -49,16 +82,42 @@ protected:
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 
 	DECLARE_MESSAGE_MAP()
+
+	LRESULT OnSetProgBar(WPARAM wParam, LPARAM lParam);
+	LRESULT OnStart(WPARAM wParam, LPARAM lParam);
+	LRESULT OnStop(WPARAM wParam, LPARAM lParam);
+	LRESULT OnSetMarqueMode(WPARAM wParam, LPARAM lParam);
+	LRESULT OnSetStatus(WPARAM wParam, LPARAM lParam);
+	LRESULT OnSetPos(WPARAM wParam, LPARAM lParam);
+	LRESULT OnSetRange(WPARAM wParam, LPARAM lParam);
+
 private:
 	CProgressCtrl	m_CtlProgBar;
 	ProgBar*		m_pProgBar;
 	CStatic			m_CtlStatus;
+	CStatic			m_CtlProgStatus;
 	bool			m_bRunning;
 	bool			m_MarqueeMode;
 	CString			m_csTitle;
 	HWND			m_TopWnd;
+	CString			m_csStatus;
+	int				m_iRange;
 
 	CButton m_CtlCancel;
+
+	void SetProgBarIntenal(ProgBar* pProgBar);
+
+	void StartIntenal(int msDelay);
+
+	void StopIntenal();
+
+	void SetMarqueModeIntenal(bool bEnable);
+
+	void SetStatusIntenal(CString csStatus);
+
+	void SetPosIntenal(int iPos);
+
+	void SetRangeIntenal(int iRange);
 };
 
 class ProgMonitor;
@@ -114,13 +173,13 @@ public:
 	virtual void WaitForThreadAndPumpMessage(HANDLE ThreadFinished);
 
 private:
-	int					m_iMsDelay;
-	ProgMonitorDlg*				m_ProgMon;
+	int						m_iMsDelay;
+	ProgMonitorDlg*			m_ProgMon;
 	clock_t					m_InitTime;
 	CString					m_csTitle;
 	CWnd*					m_pParent;
 	CString					m_csStatus;
-	ProgMonitorDlgThread*			m_pProgMonitorDlgThread;
+	ProgMonitorDlgThread*	m_pProgMonitorDlgThread;
 
 	void SetPos(int iPos);
 
